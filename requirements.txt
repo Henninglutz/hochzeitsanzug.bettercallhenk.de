@@ -1,0 +1,13 @@
+# Hochzeitsanzug Landing Page - Python Dependencies
+
+# Flask Web Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# CORS Support
+Flask-CORS==4.0.0
+
+# WSGI Server for Production
+gunicorn==21.2.0
+
+# Python version: 3.11+
