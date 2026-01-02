@@ -283,6 +283,71 @@ ul, ol {
   object-fit: cover;
 }
 
+/* Laserhenk Search */
+.laserhenk-search {
+  background: white;
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.laserhenk-card {
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-md);
+}
+
+.laserhenk-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  .laserhenk-content {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.laserhenk-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--accent-strong);
+  margin-bottom: var(--space-xs);
+}
+
+.laserhenk-title {
+  margin-bottom: var(--space-sm);
+}
+
+.laserhenk-desc {
+  color: var(--text-light);
+  margin: 0;
+}
+
+.laserhenk-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.laserhenk-input {
+  flex: 1 1 220px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.laserhenk-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
 /* Quick Facts Box */
 .quick-facts {
   background: white;
@@ -395,6 +460,21 @@ section {
 
 .style-content {
   padding: var(--space-md);
+}
+
+.style-card.special-offer {
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-strong);
+}
+
+.style-badge {
+  display: inline-block;
+  background: var(--accent-strong);
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  margin-bottom: var(--space-sm);
 }
 
 .style-title {
