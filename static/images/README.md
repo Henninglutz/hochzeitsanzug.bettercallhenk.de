@@ -5,26 +5,27 @@ This directory contains images for the wedding suit landing page.
 ## Current Images Status
 
 ### Hero Section
-- ✅ **hero-wedding-suit.jpg** (191KB) - Currently used as hero image and for Modern & Urban style
+- ✅ **hero-wedding-suit.jpg** (191KB) - Currently used as hero image
 
 ### Style Guide Section
 - ✅ **style-boho.jpeg** (604KB) - Light beige linen suit with suspenders
-- ⚠️  **style-vintage.jpg** (16MB) - Classic anthracite suit with vest - **NEEDS OPTIMIZATION! Too large!**
+- ⚠️  **style-modern-urban.jpg** (16MB) - Classic anthracite suit with vest - now used for Modern & Urban - **NEEDS OPTIMIZATION! Too large!**
+- ⚠️  **style-vintage-classic.jpeg** (16MB) - Deep blue three-piece suit for Vintage & Classic - **NEEDS OPTIMIZATION! Too large!**
 - ✅ **style-blacktie.jpeg** (833KB) - Black tuxedo with bow tie
-- ❌ **style-modern.jpg** - Missing! Currently using hero-wedding-suit.jpg as fallback
+- ✅ **style-tweed-outdoor.jpeg** (191KB) - Textured tweed-inspired look for outdoor weddings
 
 ### Unused/Cleanup
 - **wedding_FLYER_QRcode_check.jpg** (594KB) - Not used in HTML, consider removing or documenting purpose
 
 ## Action Items
 
-1. **URGENT:** Optimize `style-vintage.jpg` from 16MB to <200KB using tools like:
+1. **URGENT:** Optimize `style-modern-urban.jpg` and `style-vintage-classic.jpeg` from 16MB to <200KB using tools like:
    - TinyPNG (https://tinypng.com/)
    - ImageOptim
    - Photoshop "Save for Web"
    - Online tools: squoosh.app, compressor.io
 
-2. **Recommended:** Create dedicated `style-modern.jpg` image instead of reusing hero image
+2. **Recommended:** Replace `style-modern-urban.jpg` with an optimized dedicated modern/urban photo if available
 
 3. **Optional:** Remove or document purpose of `wedding_FLYER_QRcode_check.jpg`
 
