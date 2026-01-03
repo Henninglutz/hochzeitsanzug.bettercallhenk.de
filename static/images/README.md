@@ -14,8 +14,8 @@ This directory contains images for the wedding suit landing page.
 - ✅ **style-blacktie.jpeg** (833KB) - Black tuxedo with bow tie
 - ✅ **style-tweed-outdoor.jpeg** (191KB) - Textured tweed-inspired look for outdoor weddings
 
-### Unused/Cleanup
-- **wedding_FLYER_QRcode_check.jpg** (594KB) - Not used in HTML, consider removing or documenting purpose
+### All Images Are In Use
+All images are currently mapped to the style cards in the HTML.
 
 ## Action Items
 
@@ -27,7 +27,6 @@ This directory contains images for the wedding suit landing page.
 
 2. **Recommended:** Replace `style-modern-urban.jpg` with an optimized dedicated modern/urban photo if available
 
-3. **Optional:** Remove or document purpose of `wedding_FLYER_QRcode_check.jpg`
 
 ## Image Optimization Guidelines
 
