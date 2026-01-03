@@ -172,15 +172,16 @@ Edit `templates/hochzeitsanzug.html`:
 
 ### Add Images
 
-Place images in `templates/static/images/`:
+Place images in `static/images/`:
 
 - `hero-wedding-suit.jpg` (600x800px)
 - `style-boho.jpg` (400x500px)
-- `style-vintage.jpg` (400x500px)
+- `style-vintage-classic.jpeg` (400x500px)
 - `style-blacktie.jpg` (400x500px)
-- `style-modern.jpg` (400x500px)
+- `style-modern-urban.jpg` (400x500px)
+- `style-tweed-outdoor.jpeg` (400x500px)
 
-See `templates/static/images/README.md` for specifications.
+See `static/images/README.md` for specifications.
 
 ### Add Analytics
 
