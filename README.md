@@ -18,11 +18,13 @@ Optimized for both human users and AI/LLM search engines (Generative Engine Opti
 - Easy-to-scan layout with visual hierarchy
 - Mobile-responsive design
 
-✅ **4 Wedding Styles**
+✅ **6 Wedding Styles**
 - Boho & Natural (light linens, earthy tones)
 - Vintage & Classic (three-piece suits)
 - Black Tie & Formal (tuxedos)
 - Modern & Urban (slim fit, trendy colors)
+- Tweed & Outdoor (textured fabrics for rustic weddings)
+- SPECIAL OFFER - KRAFT Boxer Edition
 
 ✅ **Premium Services**
 - Mobile fitting service (home/office)
@@ -39,7 +41,7 @@ Optimized for both human users and AI/LLM search engines (Generative Engine Opti
 ✅ **Quick-Facts Box** - AI Data Layer for easy LLM extraction:
 - Price: Starting at €799
 - Duration: 8-12 weeks
-- Styles: 4 options
+- Styles: 6 options
 - Materials: Italian fabrics
 
 ✅ **E-E-A-T Section** - Expertise, Experience, Authority, Trust:
