@@ -24,6 +24,7 @@ app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
 
 
 @app.route('/')
+@app.route('/LP-Hochzeitsanzug')
 def index():
     """
     Serve the Hochzeitsanzug (Wedding Suit) landing page.
@@ -37,6 +38,13 @@ def index():
         Rendered HTML template with full SEO meta tags and structured data
     """
     return render_template('hochzeitsanzug.html')
+
+
+@app.route('/danke')
+@app.route('/LP-Hochzeitsanzug/danke')
+def thank_you():
+    """Serve the thank you page after a successful booking."""
+    return render_template('danke.html')
 
 
 @app.route('/health')
