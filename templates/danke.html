@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-NXC52HS5');</script>
+  <!-- End Google Tag Manager -->
+
+  <title>Danke für Ihre Buchung | bettercallhenk</title>
+  <meta name="description" content="Termin gebucht! Wir bestätigen kurzfristig per E-Mail inklusive Kalendereintrag. Henning Tepe kommt persönlich mit allen Stoffen und Mustern vorbei." />
+  <link rel="canonical" href="https://hochzeitsanzug.bettercallhenk.de/danke" />
+  <link rel="stylesheet" href="/static/hochzeitsanzug.css" />
+</head>
+<body class="landing-page">
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NXC52HS5"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
+
+  <header class="header">
+    <div class="container">
+      <div class="header-content">
+        <div class="logo">
+          <h1 class="logo-text">bettercallhenk</h1>
+          <p class="logo-tagline">Hochzeitsanzüge nach Maß – direkt zu Ihnen</p>
+        </div>
+        <nav class="nav">
+          <a href="/" class="nav-link">Zur Startseite</a>
+          <a href="tel:+4954112345678" class="btn btn-secondary">📞 Direkt anrufen</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="thankyou-hero">
+      <div class="container thankyou-hero__grid">
+        <div class="thankyou-hero__text">
+          <p class="thankyou-kicker">Termin erhalten</p>
+          <h1 class="hero-title">Danke für Ihr Vertrauen!</h1>
+          <p class="hero-subtitle">
+            Ihr Termin ist gebucht. Sie erhalten in Kürze eine Bestätigung per E-Mail – inklusive Kalendereintrag.
+            Henning Tepe kommt persönlich vorbei und bringt alle Stoffe, Muster und die mobile Anprobe mit.
+          </p>
+          <div class="thankyou-actions">
+            <a href="/" class="btn btn-primary btn-lg">Zurück zur Landing Page</a>
+            <a href="mailto:henk@bettercallhenk.de" class="btn btn-secondary btn-lg">Fragen? Schreiben Sie uns</a>
+          </div>
+          <div class="thankyou-meta">
+            <span class="trust-item">⏰ Antwort innerhalb von 24 Stunden</span>
+            <span class="trust-item">📅 Kalendereintrag inklusive</span>
+            <span class="trust-item">🤵 Maßberatung bei Ihnen vor Ort</span>
+          </div>
+        </div>
+        <div class="thankyou-hero__card">
+          <div class="thankyou-card__body">
+            <p class="thankyou-card__kicker">Ihre Buchung</p>
+            <h2 class="thankyou-card__title">Was passiert als Nächstes?</h2>
+            <ul class="thankyou-steps">
+              <li><strong>1. Bestätigung:</strong> Sie erhalten umgehend eine E-Mail mit allen Details und Kalendereintrag.</li>
+              <li><strong>2. Vorbereitung:</strong> Henning stimmt Stoffauswahl und Stilideen auf Ihre Wünsche ab.</li>
+              <li><strong>3. Termin vor Ort:</strong> Wir kommen zu Ihnen – Beratung, Anprobe und Vermessung inklusive.</li>
+            </ul>
+            <div class="contact-box">
+              <p class="contact-box__title">Direkter Kontakt</p>
+              <p>Henning Tepe – <a href="tel:+4954112345678">+49 541 12345678</a><br />
+                <a href="mailto:henk@bettercallhenk.de">henk@bettercallhenk.de</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="cookie-banner" id="cookie-banner" role="dialog" aria-label="Cookie Hinweis">
+    <p class="cookie-banner__text">
+      Wir verwenden Cookies, um unsere Website sicher und performant zu betreiben. Mit einem Klick auf
+      „Zustimmen“ akzeptieren Sie optionale Cookies (inkl. Google Tag Manager). Sie können Ihre Entscheidung
+      jederzeit in den Browsereinstellungen anpassen.
+    </p>
+    <div class="cookie-actions">
+      <button class="btn-cookie" id="cookie-accept" type="button">Zustimmen</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const banner = document.getElementById('cookie-banner');
+      const accept = document.getElementById('cookie-accept');
+
+      if (!banner || !accept) return;
+
+      const storageKey = 'bch_cookie_consent';
+      const hasConsent = localStorage.getItem(storageKey) === 'accepted';
+
+      if (hasConsent) {
+        banner.classList.add('is-hidden');
+        return;
+      }
+
+      accept.addEventListener('click', function () {
+        localStorage.setItem(storageKey, 'accepted');
+        banner.classList.add('is-hidden');
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -39,6 +39,12 @@ def index():
     return render_template('hochzeitsanzug.html')
 
 
+@app.route('/danke')
+def thank_you():
+    """Serve the thank you page after a successful booking."""
+    return render_template('danke.html')
+
+
 @app.route('/health')
 def health():
     """Health check endpoint for monitoring."""
