@@ -669,6 +669,39 @@
     </div>
   </footer>
 
+  <div class="cookie-banner" id="cookie-banner" role="dialog" aria-label="Cookie Hinweis">
+    <p class="cookie-banner__text">
+      Wir verwenden Cookies, um unsere Website sicher und performant zu betreiben. Mit einem Klick auf
+      „Zustimmen“ akzeptieren Sie optionale Cookies (inkl. Google Tag Manager). Sie können Ihre Entscheidung
+      jederzeit in den Browsereinstellungen anpassen.
+    </p>
+    <div class="cookie-actions">
+      <button class="btn-cookie" id="cookie-accept" type="button">Zustimmen</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const banner = document.getElementById('cookie-banner');
+      const accept = document.getElementById('cookie-accept');
+
+      if (!banner || !accept) return;
+
+      const storageKey = 'bch_cookie_consent';
+      const hasConsent = localStorage.getItem(storageKey) === 'accepted';
+
+      if (hasConsent) {
+        banner.classList.add('is-hidden');
+        return;
+      }
+
+      accept.addEventListener('click', function () {
+        localStorage.setItem(storageKey, 'accepted');
+        banner.classList.add('is-hidden');
+      });
+    })();
+  </script>
+
   <!-- JavaScript -->
   <script src="/static/hochzeitsanzug.js" defer></script>
 
