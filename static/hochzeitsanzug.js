@@ -19,6 +19,7 @@
     initMobileNav();
     initCTATracking();
     initIntersectionObserver();
+    initContactForm();
   }
 
   /**
@@ -208,5 +209,221 @@
 
   // Initialize lazy loading
   initLazyLoading();
+
+  /**
+   * Contact Form with Anti-Spam Protection
+   * - reCAPTCHA v3
+   * - Honeypot field
+   * - Timestamp check (< 5 sec = bot)
+   * - German phone validation
+   */
+  function initContactForm() {
+    const form = document.getElementById('contact-form');
+    if (!form) return;
+
+    const formLoadedAtField = document.getElementById('form_loaded_at');
+    const submitBtn = document.getElementById('submit-btn');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnSpinner = submitBtn.querySelector('.btn-spinner');
+    const formMessage = document.getElementById('form-message');
+
+    // Set timestamp when form loads
+    if (formLoadedAtField) {
+      formLoadedAtField.value = Date.now().toString();
+    }
+
+    // German phone validation regex
+    // Akzeptiert: +49, 0049, 0... (Deutsche Nummern)
+    const germanPhoneRegex = /^(\+49|0049|0)[1-9]\d{1,14}$/;
+
+    // Form submit handler
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      // Clear previous errors
+      clearErrors();
+      hideMessage();
+
+      // Client-side validation
+      if (!validateForm()) {
+        return;
+      }
+
+      // Disable submit button
+      submitBtn.disabled = true;
+      btnText.style.display = 'none';
+      btnSpinner.style.display = 'inline';
+
+      try {
+        // Get reCAPTCHA token
+        const recaptchaToken = await getRecaptchaToken();
+
+        // Prepare form data
+        const formData = new FormData(form);
+        const data = {
+          name: formData.get('name'),
+          email: formData.get('email'),
+          phone: formData.get('phone'),
+          wedding_date: formData.get('wedding_date'),
+          message: formData.get('message'),
+          website: formData.get('website'), // Honeypot
+          form_loaded_at: formData.get('form_loaded_at'),
+          recaptcha_token: recaptchaToken
+        };
+
+        // Send to backend
+        const response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          // Success - redirect to thank you page
+          showMessage('Vielen Dank! Wir haben Ihre Anfrage erhalten.', 'success');
+          form.reset();
+
+          // Redirect after 1.5 seconds
+          setTimeout(() => {
+            window.location.href = '/danke';
+          }, 1500);
+        } else {
+          // Error
+          showMessage(
+            result.message || 'Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.',
+            'error'
+          );
+        }
+      } catch (error) {
+        console.error('Form submission error:', error);
+        showMessage(
+          'Verbindungsfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
+          'error'
+        );
+      } finally {
+        // Re-enable submit button
+        submitBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnSpinner.style.display = 'none';
+      }
+    });
+
+    /**
+     * Get reCAPTCHA v3 Token
+     */
+    function getRecaptchaToken() {
+      return new Promise((resolve, reject) => {
+        if (typeof grecaptcha === 'undefined') {
+          reject('reCAPTCHA not loaded');
+          return;
+        }
+
+        grecaptcha.ready(() => {
+          grecaptcha
+            .execute('6Ld6h00sAAAAAFtzUGxEg2qj-jY73bYFRcNYjsWt', { action: 'contact_form' })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
+    }
+
+    /**
+     * Client-side form validation
+     */
+    function validateForm() {
+      let isValid = true;
+
+      // Name validation
+      const name = form.querySelector('#name').value.trim();
+      if (name.length < 2) {
+        showError('name', 'Bitte geben Sie Ihren vollständigen Namen ein.');
+        isValid = false;
+      }
+
+      // Email validation
+      const email = form.querySelector('#email').value.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        showError('email', 'Bitte geben Sie eine gültige E-Mail-Adresse ein.');
+        isValid = false;
+      }
+
+      // German phone validation
+      const phone = form.querySelector('#phone').value.trim().replace(/\s/g, '');
+      if (!germanPhoneRegex.test(phone)) {
+        showError(
+          'phone',
+          'Bitte geben Sie eine gültige deutsche Telefonnummer ein (z.B. 0160 1234567 oder +49 160 1234567).'
+        );
+        isValid = false;
+      }
+
+      // Message validation
+      const message = form.querySelector('#message').value.trim();
+      if (message.length < 10) {
+        showError('message', 'Bitte geben Sie eine ausführlichere Nachricht ein (mind. 10 Zeichen).');
+        isValid = false;
+      }
+
+      return isValid;
+    }
+
+    /**
+     * Show validation error
+     */
+    function showError(fieldName, message) {
+      const errorElement = document.getElementById(`${fieldName}-error`);
+      if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+      }
+
+      const inputElement = document.getElementById(fieldName);
+      if (inputElement) {
+        inputElement.classList.add('error');
+        inputElement.setAttribute('aria-invalid', 'true');
+      }
+    }
+
+    /**
+     * Clear all errors
+     */
+    function clearErrors() {
+      const errorElements = form.querySelectorAll('.form-error');
+      errorElements.forEach(el => {
+        el.textContent = '';
+        el.style.display = 'none';
+      });
+
+      const inputElements = form.querySelectorAll('.error');
+      inputElements.forEach(el => {
+        el.classList.remove('error');
+        el.removeAttribute('aria-invalid');
+      });
+    }
+
+    /**
+     * Show form message
+     */
+    function showMessage(message, type) {
+      formMessage.textContent = message;
+      formMessage.className = `form-message form-message--${type}`;
+      formMessage.style.display = 'block';
+
+      // Track event
+      trackEvent('Form', 'Submit', type === 'success' ? 'Success' : 'Error');
+    }
+
+    /**
+     * Hide form message
+     */
+    function hideMessage() {
+      formMessage.style.display = 'none';
+    }
+  }
 
 })();
