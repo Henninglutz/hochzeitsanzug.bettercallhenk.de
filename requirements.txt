@@ -7,6 +7,9 @@ Werkzeug==3.0.1
 # CORS Support
 Flask-CORS==4.0.0
 
+# HTTP Requests (for reCAPTCHA verification)
+requests==2.31.0
+
 # WSGI Server for Production
 gunicorn==21.2.0
 

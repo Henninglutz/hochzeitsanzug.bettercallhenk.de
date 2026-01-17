@@ -33,6 +33,9 @@
   <!-- Stylesheet -->
   <link rel="stylesheet" href="/static/hochzeitsanzug.css" />
 
+  <!-- reCAPTCHA v3 -->
+  <script src="https://www.google.com/recaptcha/api.js?render=6Ld6h00sAAAAAFtzUGxEg2qj-jY73bYFRcNYjsWt" async defer></script>
+
   <!-- JSON-LD Structured Data: ClothingStore -->
   <script type="application/ld+json">
   {
@@ -620,8 +623,114 @@
             Vereinbaren Sie jetzt Ihr kostenloses Beratungsgespräch –
             bei uns im Geschäft oder mobil bei Ihnen.
           </p>
+
+          <!-- Contact Form -->
+          <form id="contact-form" class="contact-form" novalidate>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="name">Name *</label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  required
+                  minlength="2"
+                  placeholder="Ihr vollständiger Name"
+                  autocomplete="name"
+                />
+                <span class="form-error" id="name-error"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="email">E-Mail *</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  required
+                  placeholder="ihre@email.de"
+                  autocomplete="email"
+                />
+                <span class="form-error" id="email-error"></span>
+              </div>
+
+              <div class="form-group">
+                <label for="phone">Telefon *</label>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  required
+                  placeholder="0160 1234567"
+                  autocomplete="tel"
+                />
+                <span class="form-error" id="phone-error"></span>
+                <small class="form-hint">Nur deutsche Nummern (+49 / 0...)</small>
+              </div>
+
+              <div class="form-group">
+                <label for="wedding_date">Hochzeitstermin (optional)</label>
+                <input
+                  type="date"
+                  id="wedding_date"
+                  name="wedding_date"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div class="form-group form-group-full">
+                <label for="message">Ihre Nachricht *</label>
+                <textarea
+                  id="message"
+                  name="message"
+                  required
+                  minlength="10"
+                  rows="4"
+                  placeholder="Erzählen Sie uns von Ihrer Hochzeit und Ihren Vorstellungen..."
+                ></textarea>
+                <span class="form-error" id="message-error"></span>
+              </div>
+
+              <!-- Honeypot Field (versteckt für Bots) -->
+              <input
+                type="text"
+                name="website"
+                id="website"
+                autocomplete="off"
+                tabindex="-1"
+                style="position: absolute; left: -9999px; width: 1px; height: 1px;"
+                aria-hidden="true"
+              />
+
+              <!-- Versteckter Zeitstempel -->
+              <input type="hidden" name="form_loaded_at" id="form_loaded_at" />
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+                <span class="btn-text">Kostenlose Beratung anfragen</span>
+                <span class="btn-spinner" style="display: none;">⏳ Wird gesendet...</span>
+              </button>
+            </div>
+
+            <p class="form-notice">
+              <small>
+                Mit dem Absenden stimmen Sie unserer
+                <a href="/datenschutz">Datenschutzerklärung</a> zu.
+                Diese Seite ist durch reCAPTCHA geschützt.
+              </small>
+            </p>
+
+            <!-- Status Messages -->
+            <div class="form-message" id="form-message" style="display: none;"></div>
+          </form>
+
+          <div class="contact-divider">
+            <span>oder direkt kontaktieren</span>
+          </div>
+
           <div class="contact-cta">
-            <a href="tel:+491607857633" class="btn btn-primary btn-lg">
+            <a href="tel:+491607857633" class="btn btn-secondary btn-lg">
               <span class="btn-icon">📞</span> Jetzt anrufen: +49 160 78 57 633
             </a>
             <a href="mailto:henk@bettercallhenk.de" class="btn btn-secondary btn-lg">
