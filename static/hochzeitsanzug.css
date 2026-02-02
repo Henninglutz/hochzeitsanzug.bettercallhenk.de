@@ -283,6 +283,13 @@ ul, ol {
   object-fit: cover;
 }
 
+.image-placeholder {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: var(--space-xs);
+  text-align: center;
+}
+
 /* Laserhenk Search */
 .laserhenk-search {
   background: white;

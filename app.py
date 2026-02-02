@@ -55,6 +55,12 @@ def index():
     return render_template('hochzeitsanzug.html')
 
 
+@app.route('/kraft-boxer')
+def kraft_boxer():
+    """Serve the Kraft Boxer landing page for athletic tailoring."""
+    return render_template('kraft-boxer.html')
+
+
 @app.route('/danke')
 def thank_you():
     """Serve the thank you page after a successful booking."""
