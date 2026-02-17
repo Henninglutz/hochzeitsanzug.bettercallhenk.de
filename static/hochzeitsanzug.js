@@ -268,7 +268,8 @@
           message: formData.get('message'),
           website: formData.get('website'), // Honeypot
           form_loaded_at: formData.get('form_loaded_at'),
-          recaptcha_token: recaptchaToken
+          recaptcha_token: recaptchaToken,
+          source: formData.get('source') || 'unknown'
         };
 
         // Send to backend
@@ -291,8 +292,14 @@
           setTimeout(() => {
             window.location.href = '/danke';
           }, 1500);
+        } else if (response.status === 429) {
+          // Rate limited
+          showMessage(
+            'Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut.',
+            'error'
+          );
         } else {
-          // Error
+          // Other error
           showMessage(
             result.message || 'Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.',
             'error'
@@ -301,7 +308,7 @@
       } catch (error) {
         console.error('Form submission error:', error);
         showMessage(
-          'Verbindungsfehler. Bitte überprüfen Sie Ihre Internetverbindung.',
+          'Es gab ein Problem bei der Verbindung. Bitte versuchen Sie es erneut oder rufen Sie uns direkt an unter +49 160 78 57 633.',
           'error'
         );
       } finally {
@@ -314,20 +321,39 @@
 
     /**
      * Get reCAPTCHA v3 Token
+     * Returns null if reCAPTCHA is not available (adblocker, network issue, etc.)
+     * The backend will still validate via honeypot, timestamp, and phone checks
      */
     function getRecaptchaToken() {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         if (typeof grecaptcha === 'undefined') {
-          reject('reCAPTCHA not loaded');
+          console.warn('reCAPTCHA not available - submitting without token');
+          resolve(null);
           return;
         }
 
-        grecaptcha.ready(() => {
-          grecaptcha
-            .execute('6Ld6h00sAAAAAFtzUGxEg2qj-jY73bYFRcNYjsWt', { action: 'contact_form' })
-            .then(resolve)
-            .catch(reject);
-        });
+        // Timeout safety: if reCAPTCHA hangs, resolve after 5 seconds
+        var timeout = setTimeout(function() { resolve(null); }, 5000);
+
+        try {
+          grecaptcha.ready(() => {
+            grecaptcha
+              .execute('6Ld6h00sAAAAAFtzUGxEg2qj-jY73bYFRcNYjsWt', { action: 'contact_form' })
+              .then((token) => {
+                clearTimeout(timeout);
+                resolve(token);
+              })
+              .catch((err) => {
+                clearTimeout(timeout);
+                console.warn('reCAPTCHA execute failed:', err);
+                resolve(null);
+              });
+          });
+        } catch (err) {
+          clearTimeout(timeout);
+          console.warn('reCAPTCHA ready() failed:', err);
+          resolve(null);
+        }
       });
     }
 
