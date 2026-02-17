@@ -10,6 +10,8 @@ import logging
 import requests
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +39,20 @@ RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 # Anti-Spam Configuration
 MIN_FORM_SUBMIT_TIME = 5  # seconds - Bots submit faster than 5 seconds
 RECAPTCHA_SCORE_THRESHOLD = 0.5  # reCAPTCHA v3 score threshold (0.0 = bot, 1.0 = human)
+
+# Pipedrive API Configuration
+PIPEDRIVE_API_TOKEN = os.environ.get('PIPEDRIVE_API_TOKEN', '')
+PIPEDRIVE_COMPANY_DOMAIN = os.environ.get('PIPEDRIVE_COMPANY_DOMAIN', '')
+PIPEDRIVE_API_BASE = f'https://{PIPEDRIVE_COMPANY_DOMAIN}.pipedrive.com/api/v1' if PIPEDRIVE_COMPANY_DOMAIN else ''
+
+# Rate Limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+    strategy="fixed-window",
+)
 
 
 @app.route('/')
@@ -68,6 +84,9 @@ def thank_you():
 
 
 @app.route('/api/contact', methods=['POST'])
+@limiter.limit("5 per minute")
+@limiter.limit("20 per hour")
+@limiter.limit("50 per day")
 def contact_form():
     """
     Contact Form Submission with Multi-Layer Anti-Spam Protection
@@ -96,6 +115,7 @@ def contact_form():
         honeypot = data.get('website', '').strip()
         form_loaded_at = data.get('form_loaded_at', '0')
         recaptcha_token = data.get('recaptcha_token', '')
+        source_page = data.get('source', 'unknown').strip()
 
         # === ANTI-SPAM CHECK 1: Honeypot Field ===
         if honeypot:
@@ -127,23 +147,27 @@ def contact_form():
             }), 200
 
         # === ANTI-SPAM CHECK 3: reCAPTCHA v3 Verification ===
-        recaptcha_score = verify_recaptcha(recaptcha_token, request.remote_addr)
+        if recaptcha_token:
+            recaptcha_score = verify_recaptcha(recaptcha_token, request.remote_addr)
 
-        if recaptcha_score is None:
-            logger.warning(f'🤖 BOT DETECTED (reCAPTCHA Failed): {email}')
-            # Fake success for bots
-            return jsonify({
-                'success': True,
-                'message': 'Vielen Dank! Wir haben Ihre Anfrage erhalten.'
-            }), 200
+            if recaptcha_score is None:
+                logger.warning(f'🤖 BOT DETECTED (reCAPTCHA Failed): {email}')
+                return jsonify({
+                    'success': True,
+                    'message': 'Vielen Dank! Wir haben Ihre Anfrage erhalten.'
+                }), 200
 
-        if recaptcha_score < RECAPTCHA_SCORE_THRESHOLD:
-            logger.warning(f'🤖 BOT DETECTED (Low Score): {email} - Score: {recaptcha_score}')
-            # Fake success for bots
-            return jsonify({
-                'success': True,
-                'message': 'Vielen Dank! Wir haben Ihre Anfrage erhalten.'
-            }), 200
+            if recaptcha_score < RECAPTCHA_SCORE_THRESHOLD:
+                logger.warning(f'🤖 BOT DETECTED (Low Score): {email} - Score: {recaptcha_score}')
+                return jsonify({
+                    'success': True,
+                    'message': 'Vielen Dank! Wir haben Ihre Anfrage erhalten.'
+                }), 200
+        else:
+            # No token - reCAPTCHA likely blocked by adblocker
+            # Other 3 checks (honeypot, timestamp, phone) still protect us
+            logger.info(f'reCAPTCHA skipped (likely adblocker) for: {email}')
+            recaptcha_score = None
 
         # === ANTI-SPAM CHECK 4: German Phone Validation ===
         if not validate_german_phone(phone):
@@ -161,19 +185,19 @@ def contact_form():
             }), 400
 
         # === ALL CHECKS PASSED - Real Human User ===
-        logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score}')
+        logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score} - Source: {source_page}')
 
-        # Send email notification
-        email_sent = send_contact_email(name, email, phone, wedding_date, message)
+        # Create lead in Pipedrive CRM
+        lead_created = create_pipedrive_lead(name, email, phone, wedding_date, message, source_page)
 
-        if email_sent:
-            logger.info(f'📧 Email sent successfully to henk@bettercallhenk.de')
+        if lead_created:
+            logger.info(f'📧 Lead created in Pipedrive for {email}')
             return jsonify({
                 'success': True,
                 'message': 'Vielen Dank! Wir haben Ihre Anfrage erhalten und melden uns bald bei Ihnen.'
             }), 200
         else:
-            logger.error(f'❌ Email sending failed for {email}')
+            logger.error(f'❌ Lead creation failed for {email}')
             return jsonify({
                 'success': False,
                 'message': 'Es gab ein Problem beim Versenden. Bitte versuchen Sie es erneut oder rufen Sie uns direkt an.'
@@ -251,42 +275,140 @@ def validate_german_phone(phone):
     return bool(re.match(german_phone_pattern, phone_clean))
 
 
-def send_contact_email(name, email, phone, wedding_date, message):
+def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page='unknown'):
     """
-    Send contact form notification email
-
-    This is a placeholder function. In production, you should:
-    1. Use SMTP (smtplib) to send emails
-    2. Or use a service like SendGrid, Mailgun, AWS SES
-    3. Or save to database and process later
-
-    For now, we'll just log it and return True
+    Create a Person and Deal in Pipedrive CRM.
+    Falls back to logging if Pipedrive is not configured or unavailable.
     """
-    logger.info('=' * 60)
-    logger.info('📧 NEW CONTACT FORM SUBMISSION')
-    logger.info('=' * 60)
-    logger.info(f'Name: {name}')
-    logger.info(f'Email: {email}')
-    logger.info(f'Phone: {phone}')
-    logger.info(f'Wedding Date: {wedding_date or "Not specified"}')
-    logger.info(f'Message: {message}')
-    logger.info('=' * 60)
+    if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
+        logger.error('Pipedrive API not configured - missing PIPEDRIVE_API_TOKEN or PIPEDRIVE_COMPANY_DOMAIN')
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        return True
 
-    # TODO: Implement actual email sending
-    # For production, use:
-    # - SMTP with smtplib
-    # - SendGrid API
-    # - Mailgun API
-    # - AWS SES
-    # - Or save to database and send via background worker
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    }
 
-    return True  # Placeholder - always returns success
+    try:
+        # Step 1: Create Person
+        person_data = {
+            'name': name,
+            'email': [{'value': email, 'primary': True}],
+            'phone': [{'value': phone, 'primary': True}],
+        }
+
+        person_response = requests.post(
+            f'{PIPEDRIVE_API_BASE}/persons?api_token={PIPEDRIVE_API_TOKEN}',
+            json=person_data,
+            headers=headers,
+            timeout=10
+        )
+
+        person_result = person_response.json()
+
+        if not person_result.get('success'):
+            logger.error(f'Pipedrive person creation failed: {person_result}')
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+            return True
+
+        person_id = person_result['data']['id']
+        logger.info(f'Pipedrive person created: ID {person_id} for {email}')
+
+        # Step 2: Create Deal linked to Person
+        deal_title = f'LP {source_page.replace("-", " ").title()} - {name}'
+
+        deal_data = {
+            'title': deal_title,
+            'person_id': person_id,
+            'status': 'open',
+        }
+
+        deal_response = requests.post(
+            f'{PIPEDRIVE_API_BASE}/deals?api_token={PIPEDRIVE_API_TOKEN}',
+            json=deal_data,
+            headers=headers,
+            timeout=10
+        )
+
+        deal_result = deal_response.json()
+
+        if not deal_result.get('success'):
+            logger.error(f'Pipedrive deal creation failed: {deal_result}')
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+            return True
+
+        deal_id = deal_result['data']['id']
+        logger.info(f'Pipedrive deal created: ID {deal_id} - "{deal_title}"')
+
+        # Step 3: Add note with full message and wedding date
+        note_content = (
+            f'<b>Kontaktformular-Anfrage</b><br>'
+            f'<b>Seite:</b> {source_page}<br>'
+            f'<b>Hochzeitstermin:</b> {wedding_date or "Nicht angegeben"}<br>'
+            f'<b>Nachricht:</b><br>{message}'
+        )
+
+        note_data = {
+            'content': note_content,
+            'deal_id': deal_id,
+            'person_id': person_id,
+            'pinned_to_deal_flag': 1,
+        }
+
+        note_response = requests.post(
+            f'{PIPEDRIVE_API_BASE}/notes?api_token={PIPEDRIVE_API_TOKEN}',
+            json=note_data,
+            headers=headers,
+            timeout=10
+        )
+
+        if note_response.json().get('success'):
+            logger.info(f'Pipedrive note added to deal {deal_id}')
+        else:
+            logger.warning(f'Pipedrive note creation failed (non-critical): {note_response.json()}')
+
+        return True
+
+    except requests.exceptions.Timeout:
+        logger.error(f'Pipedrive API timeout for {email}')
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        return True
+
+    except Exception as e:
+        logger.error(f'Pipedrive API error: {str(e)}', exc_info=True)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        return True
+
+
+def _log_lead_fallback(name, email, phone, wedding_date, message, source_page):
+    """Log lead details when Pipedrive is unavailable, so no lead is lost."""
+    logger.warning('=' * 60)
+    logger.warning('PIPEDRIVE UNAVAILABLE - LEAD LOGGED AS FALLBACK')
+    logger.warning('=' * 60)
+    logger.warning(f'Source: {source_page}')
+    logger.warning(f'Name: {name}')
+    logger.warning(f'Email: {email}')
+    logger.warning(f'Phone: {phone}')
+    logger.warning(f'Wedding Date: {wedding_date or "Not specified"}')
+    logger.warning(f'Message: {message}')
+    logger.warning('=' * 60)
 
 
 @app.route('/health')
 def health():
     """Health check endpoint for monitoring."""
     return {'status': 'healthy', 'service': 'hochzeitsanzug-landing'}, 200
+
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Handle rate limit exceeded."""
+    logger.warning(f'🚫 Rate limit exceeded: {request.remote_addr}')
+    return jsonify({
+        'success': False,
+        'message': 'Zu viele Anfragen. Bitte versuchen Sie es in einigen Minuten erneut.'
+    }), 429
 
 
 @app.errorhandler(404)
