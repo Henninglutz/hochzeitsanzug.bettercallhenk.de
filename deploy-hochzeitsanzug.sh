@@ -15,6 +15,7 @@ APP_DIR="/var/www/hochzeitsanzug"
 REPO_URL="https://github.com/Henninglutz/hochzeitsanzug.bettercallhenk.de.git"
 BRANCH="main"
 APP_PORT="${APP_PORT:-8001}"
+FORCE_SYNC_WITH_REMOTE="${FORCE_SYNC_WITH_REMOTE:-true}"
 
 echo -e "${YELLOW}[1/6]${NC} Erstelle Verzeichnis..."
 mkdir -p "$APP_DIR"
@@ -24,11 +25,24 @@ echo -e "${YELLOW}[2/6]${NC} Clone/Update Repository..."
 if [ -d "$APP_DIR/.git" ]; then
     echo "Repository existiert bereits, aktualisiere..."
     git fetch origin
-    git checkout $BRANCH 2>/dev/null || git checkout master 2>/dev/null || {
+    git checkout "$BRANCH" 2>/dev/null || git checkout master 2>/dev/null || {
         echo -e "${RED}Weder 'main' noch 'master' Branch gefunden!${NC}"
         exit 1
     }
-    git pull origin $(git branch --show-current)
+
+    if [ "$FORCE_SYNC_WITH_REMOTE" = "true" ]; then
+        echo "Synchronisiere Branch hart mit origin/$BRANCH (lokale Commits werden verworfen)..."
+        git reset --hard "origin/$BRANCH" || {
+            echo -e "${RED}Konnte nicht auf origin/$BRANCH zurücksetzen!${NC}"
+            exit 1
+        }
+    else
+        git pull --ff-only origin "$BRANCH" || {
+            echo -e "${RED}Fast-forward Pull fehlgeschlagen (Branch divergiert).${NC}"
+            echo "  Tipp: FORCE_SYNC_WITH_REMOTE=true setzen oder manuell mergen/rebasen."
+            exit 1
+        }
+    fi
 else
     git clone -b $BRANCH "$REPO_URL" "$APP_DIR" 2>/dev/null || \
     git clone -b master "$REPO_URL" "$APP_DIR" || {
@@ -175,4 +189,5 @@ echo "===================================="
 echo ""
 echo "URL: https://hochzeitsanzug.bettercallhenk.de"
 echo "Logs: docker compose -f $APP_DIR/docker-compose.yml logs -f"
+echo "Hinweis: FORCE_SYNC_WITH_REMOTE=$FORCE_SYNC_WITH_REMOTE | APP_PORT=$APP_PORT"
 echo ""
