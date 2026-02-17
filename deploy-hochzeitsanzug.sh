@@ -14,6 +14,7 @@ NC='\033[0m'
 APP_DIR="/var/www/hochzeitsanzug"
 REPO_URL="https://github.com/Henninglutz/hochzeitsanzug.bettercallhenk.de.git"
 BRANCH="main"
+APP_PORT="${APP_PORT:-8001}"
 
 echo -e "${YELLOW}[1/6]${NC} Erstelle Verzeichnis..."
 mkdir -p "$APP_DIR"
@@ -71,7 +72,7 @@ fi
 docker compose down 2>/dev/null || docker-compose down 2>/dev/null
 
 # Baue und starte neu
-docker compose up -d --build 2>/dev/null || docker-compose up -d --build || {
+APP_PORT="$APP_PORT" docker compose up -d --build 2>/dev/null || APP_PORT="$APP_PORT" docker-compose up -d --build || {
     echo -e "${RED}Docker Build fehlgeschlagen!${NC}"
     exit 1
 }
@@ -79,8 +80,8 @@ docker compose up -d --build 2>/dev/null || docker-compose up -d --build || {
 # Warte auf Health Check
 echo "Warte auf App-Start..."
 for i in {1..15}; do
-    if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} App läuft auf Port 8000"
+    if curl -sf "http://localhost:${APP_PORT}/health" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} App läuft auf Port ${APP_PORT}"
         break
     fi
     if [ $i -eq 15 ]; then
@@ -115,7 +116,7 @@ server {
 
     # Proxy to Flask/Gunicorn
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:__APP_PORT__;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -126,7 +127,7 @@ server {
 
     # Cache static assets (served by Flask but cached by Nginx)
     location /static/ {
-        proxy_pass http://127.0.0.1:8000/static/;
+        proxy_pass http://127.0.0.1:__APP_PORT__/static/;
         proxy_set_header Host $host;
         expires 1y;
         add_header Cache-Control "public, immutable";
@@ -143,6 +144,10 @@ server {
 }
 NGINXEOF
 
+
+# Setze App-Port in Nginx-Template
+sed -i "s/__APP_PORT__/${APP_PORT}/g" "$NGINX_CONF"
+
 # Test Nginx Config
 nginx -t && nginx -s reload
 echo -e "${GREEN}✓${NC} Nginx konfiguriert und neugeladen"
@@ -152,7 +157,7 @@ echo ""
 
 # Health Check
 echo "Health Check:"
-curl -s http://localhost:8000/health
+curl -s "http://localhost:${APP_PORT}/health"
 echo ""
 
 # HTTPS Check
@@ -161,7 +166,7 @@ curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" -I https://hochzeitsanzug.
 
 # API Check
 echo "API Check:"
-curl -s -o /dev/null -w "POST /api/contact: %{http_code}\n" -X POST http://localhost:8000/api/contact -H "Content-Type: application/json" -d '{}' || echo "API not reachable"
+curl -s -o /dev/null -w "POST /api/contact: %{http_code}\n" -X POST "http://localhost:${APP_PORT}/api/contact" -H "Content-Type: application/json" -d '{}' || echo "API not reachable"
 
 echo ""
 echo "===================================="
