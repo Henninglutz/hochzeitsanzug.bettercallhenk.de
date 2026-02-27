@@ -395,14 +395,6 @@
         showError('message', 'Bitte geben Sie eine ausführlichere Nachricht ein (mind. 10 Zeichen).');
         isValid = false;
       }
-
-      // WhatsApp consent validation
-      const whatsappConsent = form.querySelector('#whatsapp_consent');
-      if (whatsappConsent && !whatsappConsent.checked) {
-        showError('whatsapp_consent', 'Bitte stimmen Sie der WhatsApp-Kontaktaufnahme zu.');
-        isValid = false;
-      }
-
       return isValid;
     }
 
