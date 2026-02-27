@@ -480,6 +480,45 @@ def health():
     return {'status': 'healthy', 'service': 'hochzeitsanzug-landing'}, 200
 
 
+@app.route('/pipedrive-health')
+def pipedrive_health():
+    """
+    Pipedrive connectivity check.
+    Tests whether the API token and company domain are valid.
+    """
+    if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
+        return {
+            'status': 'error',
+            'reason': 'PIPEDRIVE_API_TOKEN or PIPEDRIVE_COMPANY_DOMAIN not set',
+            'api_token_set': bool(PIPEDRIVE_API_TOKEN),
+            'company_domain_set': bool(PIPEDRIVE_COMPANY_DOMAIN),
+        }, 500
+
+    try:
+        resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/users/me?api_token={PIPEDRIVE_API_TOKEN}',
+            timeout=10,
+        )
+        result = resp.json()
+        if result.get('success'):
+            user = result.get('data', {})
+            return {
+                'status': 'ok',
+                'pipedrive_user': user.get('name'),
+                'company_domain': PIPEDRIVE_COMPANY_DOMAIN,
+                'pipeline_name': PIPEDRIVE_PIPELINE_NAME,
+                'stage_name': PIPEDRIVE_STAGE_NAME,
+            }, 200
+        else:
+            return {
+                'status': 'error',
+                'reason': 'Pipedrive API rejected token',
+                'pipedrive_error': result.get('error'),
+            }, 500
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}, 500
+
+
 @app.errorhandler(429)
 def ratelimit_handler(e):
     """Handle rate limit exceeded."""
