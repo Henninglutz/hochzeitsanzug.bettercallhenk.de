@@ -44,6 +44,10 @@ RECAPTCHA_SCORE_THRESHOLD = 0.5  # reCAPTCHA v3 score threshold (0.0 = bot, 1.0 
 PIPEDRIVE_API_TOKEN = os.environ.get('PIPEDRIVE_API_TOKEN', '')
 PIPEDRIVE_COMPANY_DOMAIN = os.environ.get('PIPEDRIVE_COMPANY_DOMAIN', '')
 PIPEDRIVE_API_BASE = f'https://{PIPEDRIVE_COMPANY_DOMAIN}.pipedrive.com/api/v1' if PIPEDRIVE_COMPANY_DOMAIN else ''
+PIPEDRIVE_PIPELINE_NAME = os.environ.get('PIPEDRIVE_PIPELINE_NAME', 'BETTERCALLHENK')
+PIPEDRIVE_STAGE_NAME = os.environ.get('PIPEDRIVE_STAGE_NAME', 'Teaser henk')
+PIPEDRIVE_FIELD_WEDDING_DATE = '5d0c64df2a706315462ca7d758971d9711d65de2'
+PIPEDRIVE_FIELD_WHATSAPP_CONSENT = '10ad5ed0620f139d337e46186c1fd043986b998d'
 
 # Rate Limiting
 limiter = Limiter(
@@ -116,6 +120,7 @@ def contact_form():
         form_loaded_at = data.get('form_loaded_at', '0')
         recaptcha_token = data.get('recaptcha_token', '')
         source_page = data.get('source', 'unknown').strip()
+        whatsapp_consent = data.get('whatsapp_consent', False)
 
         # === ANTI-SPAM CHECK 1: Honeypot Field ===
         if honeypot:
@@ -184,11 +189,17 @@ def contact_form():
                 'message': 'Bitte füllen Sie alle Pflichtfelder aus.'
             }), 400
 
+        if not whatsapp_consent:
+            return jsonify({
+                'success': False,
+                'message': 'Bitte stimmen Sie der WhatsApp-Kontaktaufnahme zu.'
+            }), 400
+
         # === ALL CHECKS PASSED - Real Human User ===
         logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score} - Source: {source_page}')
 
         # Create lead in Pipedrive CRM
-        lead_created = create_pipedrive_lead(name, email, phone, wedding_date, message, source_page)
+        lead_created = create_pipedrive_lead(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
 
         if lead_created:
             logger.info(f'📧 Lead created in Pipedrive for {email}')
@@ -275,14 +286,67 @@ def validate_german_phone(phone):
     return bool(re.match(german_phone_pattern, phone_clean))
 
 
-def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page='unknown'):
+def _find_stage_id(pipeline_name, stage_name):
+    """Resolve Pipedrive stage ID by pipeline and stage name."""
+    try:
+        pipelines_response = requests.get(
+            f'{PIPEDRIVE_API_BASE}/pipelines?api_token={PIPEDRIVE_API_TOKEN}',
+            timeout=10
+        )
+        pipelines_result = pipelines_response.json()
+
+        if not pipelines_result.get('success'):
+            logger.warning(f'Could not load Pipedrive pipelines: {pipelines_result}')
+            return None
+
+        pipeline_id = next(
+            (
+                item.get('id') for item in pipelines_result.get('data', [])
+                if item.get('name', '').strip().lower() == pipeline_name.strip().lower()
+            ),
+            None
+        )
+
+        if not pipeline_id:
+            logger.warning(f'Pipeline not found in Pipedrive: {pipeline_name}')
+            return None
+
+        stages_response = requests.get(
+            f'{PIPEDRIVE_API_BASE}/stages?api_token={PIPEDRIVE_API_TOKEN}&pipeline_id={pipeline_id}',
+            timeout=10
+        )
+        stages_result = stages_response.json()
+
+        if not stages_result.get('success'):
+            logger.warning(f'Could not load Pipedrive stages: {stages_result}')
+            return None
+
+        stage_id = next(
+            (
+                item.get('id') for item in stages_result.get('data', [])
+                if item.get('name', '').strip().lower() == stage_name.strip().lower()
+            ),
+            None
+        )
+
+        if not stage_id:
+            logger.warning(f'Stage not found in Pipedrive pipeline {pipeline_name}: {stage_name}')
+
+        return stage_id
+
+    except Exception as e:
+        logger.warning(f'Could not resolve stage id for pipeline/stage names: {str(e)}')
+        return None
+
+
+def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page='unknown', whatsapp_consent=False):
     """
     Create a Person and Deal in Pipedrive CRM.
     Falls back to logging if Pipedrive is not configured or unavailable.
     """
     if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
         logger.error('Pipedrive API not configured - missing PIPEDRIVE_API_TOKEN or PIPEDRIVE_COMPANY_DOMAIN')
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
         return True
 
     headers = {
@@ -309,20 +373,26 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
 
         if not person_result.get('success'):
             logger.error(f'Pipedrive person creation failed: {person_result}')
-            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
             return True
 
         person_id = person_result['data']['id']
         logger.info(f'Pipedrive person created: ID {person_id} for {email}')
 
-        # Step 2: Create Deal linked to Person
+        # Step 2: Create Deal linked to Person in configured pipeline/stage
         deal_title = f'LP {source_page.replace("-", " ").title()} - {name}'
+        stage_id = _find_stage_id(PIPEDRIVE_PIPELINE_NAME, PIPEDRIVE_STAGE_NAME)
 
         deal_data = {
             'title': deal_title,
             'person_id': person_id,
             'status': 'open',
+            PIPEDRIVE_FIELD_WEDDING_DATE: wedding_date or None,
+            PIPEDRIVE_FIELD_WHATSAPP_CONSENT: 'accepted' if whatsapp_consent else None,
         }
+
+        if stage_id:
+            deal_data['stage_id'] = stage_id
 
         deal_response = requests.post(
             f'{PIPEDRIVE_API_BASE}/deals?api_token={PIPEDRIVE_API_TOKEN}',
@@ -335,11 +405,14 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
 
         if not deal_result.get('success'):
             logger.error(f'Pipedrive deal creation failed: {deal_result}')
-            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
             return True
 
         deal_id = deal_result['data']['id']
-        logger.info(f'Pipedrive deal created: ID {deal_id} - "{deal_title}"')
+        logger.info(
+            f'Pipedrive deal created: ID {deal_id} - "{deal_title}" '
+            f'(pipeline="{PIPEDRIVE_PIPELINE_NAME}", stage="{PIPEDRIVE_STAGE_NAME}")'
+        )
 
         # Step 3: Add note with full message and wedding date
         note_content = (
@@ -368,20 +441,25 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
         else:
             logger.warning(f'Pipedrive note creation failed (non-critical): {note_response.json()}')
 
+        logger.info(
+            'Pipedrive payload summary | '
+            f'person={person_data} | deal={deal_data} | '
+            f'note_fields={{"deal_id": {deal_id}, "person_id": {person_id}, "pinned_to_deal_flag": 1}}'
+        )
+
         return True
 
     except requests.exceptions.Timeout:
         logger.error(f'Pipedrive API timeout for {email}')
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
         return True
 
     except Exception as e:
         logger.error(f'Pipedrive API error: {str(e)}', exc_info=True)
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
         return True
 
-
-def _log_lead_fallback(name, email, phone, wedding_date, message, source_page):
+def _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent):
     """Log lead details when Pipedrive is unavailable, so no lead is lost."""
     logger.warning('=' * 60)
     logger.warning('PIPEDRIVE UNAVAILABLE - LEAD LOGGED AS FALLBACK')
@@ -392,6 +470,7 @@ def _log_lead_fallback(name, email, phone, wedding_date, message, source_page):
     logger.warning(f'Phone: {phone}')
     logger.warning(f'Wedding Date: {wedding_date or "Not specified"}')
     logger.warning(f'Message: {message}')
+    logger.warning(f'WhatsApp Consent: {"accepted" if whatsapp_consent else "not accepted"}')
     logger.warning('=' * 60)
 
 
