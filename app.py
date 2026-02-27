@@ -7,10 +7,7 @@ import os
 import re
 import time
 import logging
-import smtplib
 import requests
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -51,14 +48,6 @@ PIPEDRIVE_PIPELINE_NAME = os.environ.get('PIPEDRIVE_PIPELINE_NAME', 'BETTERCALLH
 PIPEDRIVE_STAGE_NAME = os.environ.get('PIPEDRIVE_STAGE_NAME', 'Teaser henk')
 PIPEDRIVE_FIELD_WEDDING_DATE = '5d0c64df2a706315462ca7d758971d9711d65de2'
 PIPEDRIVE_FIELD_WHATSAPP_CONSENT = '10ad5ed0620f139d337e46186c1fd043986b998d'
-
-# Email Notification Configuration
-SMTP_HOST = os.environ.get('SMTP_HOST', '')
-SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
-SMTP_USER = os.environ.get('SMTP_USER', '')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
-FROM_EMAIL = os.environ.get('FROM_EMAIL', 'noreply@bettercallhenk.de')
-NOTIFICATION_EMAILS = os.environ.get('NOTIFICATION_EMAILS', 'henk@bettercallhenk.de,henning@bettercallhenk.de')
 
 # Rate Limiting
 limiter = Limiter(
@@ -297,120 +286,6 @@ def validate_german_phone(phone):
     return bool(re.match(german_phone_pattern, phone_clean))
 
 
-def send_lead_email(name, email, phone, wedding_date, message, source_page, whatsapp_consent, is_fallback=False):
-    """
-    Send lead notification email to internal team (Henk & Henning)
-    and a confirmation email to the customer.
-    """
-    if not SMTP_HOST or not SMTP_USER or not SMTP_PASSWORD:
-        logger.warning('SMTP not configured - skipping email notification (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD)')
-        return False
-
-    recipients = [r.strip() for r in NOTIFICATION_EMAILS.split(',') if r.strip()]
-    if not recipients:
-        logger.warning('No NOTIFICATION_EMAILS configured - skipping email')
-        return False
-
-    subject_prefix = '[PIPEDRIVE FEHLER - DIREKT REAGIEREN]' if is_fallback else '[Neue Anfrage]'
-    subject = f'{subject_prefix} Hochzeitsanzug-Anfrage von {name}'
-
-    html_body = f"""
-    <html><body>
-    <h2>{'⚠️ PIPEDRIVE NICHT ERREICHBAR - Bitte Lead manuell anlegen!' if is_fallback else '✅ Neue Kontaktanfrage'}</h2>
-    <table style="border-collapse:collapse;width:100%">
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Seite</td><td style="padding:8px">{source_page}</td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Name</td><td style="padding:8px">{name}</td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Email</td><td style="padding:8px"><a href="mailto:{email}">{email}</a></td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Telefon</td><td style="padding:8px"><a href="tel:{phone}">{phone}</a></td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Hochzeitstermin</td><td style="padding:8px">{wedding_date or 'Nicht angegeben'}</td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">WhatsApp-Zustimmung</td><td style="padding:8px">{'✅ Ja' if whatsapp_consent else '❌ Nein'}</td></tr>
-      <tr><td style="padding:8px;font-weight:bold;background:#f5f5f5">Nachricht</td><td style="padding:8px">{message}</td></tr>
-    </table>
-    </body></html>
-    """
-
-    text_body = (
-        f"{'PIPEDRIVE FEHLER - Bitte Lead manuell anlegen!' if is_fallback else 'Neue Kontaktanfrage'}\n\n"
-        f"Seite: {source_page}\n"
-        f"Name: {name}\n"
-        f"Email: {email}\n"
-        f"Telefon: {phone}\n"
-        f"Hochzeitstermin: {wedding_date or 'Nicht angegeben'}\n"
-        f"WhatsApp-Zustimmung: {'Ja' if whatsapp_consent else 'Nein'}\n"
-        f"Nachricht:\n{message}\n"
-    )
-
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = FROM_EMAIL
-        msg['To'] = ', '.join(recipients)
-        msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
-        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
-
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, recipients, msg.as_string())
-
-        logger.info(f'Lead notification email sent to {recipients} for {email}')
-    except Exception as e:
-        logger.error(f'Failed to send lead notification email: {str(e)}')
-        return False
-
-    # Send confirmation email to customer
-    try:
-        confirm_msg = MIMEMultipart('alternative')
-        confirm_msg['Subject'] = 'Ihre Anfrage bei bettercallhenk - Hochzeitsanzug'
-        confirm_msg['From'] = FROM_EMAIL
-        confirm_msg['To'] = email
-
-        confirm_html = f"""
-        <html><body>
-        <h2>Vielen Dank für Ihre Anfrage, {name}!</h2>
-        <p>Wir haben Ihre Nachricht erhalten und melden uns so schnell wie möglich bei Ihnen.</p>
-        <p>Bei dringenden Fragen erreichen Sie uns direkt:</p>
-        <ul>
-          <li>📱 WhatsApp / Telefon: <a href="tel:+4916078576333">+49 160 78 57 633</a></li>
-          <li>📧 Email: <a href="mailto:henk@bettercallhenk.de">henk@bettercallhenk.de</a></li>
-        </ul>
-        <p><b>Ihre Anfrage im Überblick:</b></p>
-        <table style="border-collapse:collapse">
-          <tr><td style="padding:4px 12px 4px 0;font-weight:bold">Hochzeitstermin:</td><td>{wedding_date or 'Noch nicht festgelegt'}</td></tr>
-          <tr><td style="padding:4px 12px 4px 0;font-weight:bold">Nachricht:</td><td>{message}</td></tr>
-        </table>
-        <br>
-        <p>Mit freundlichen Grüßen,<br><b>Henk – bettercallhenk</b></p>
-        </body></html>
-        """
-
-        confirm_text = (
-            f"Vielen Dank für Ihre Anfrage, {name}!\n\n"
-            f"Wir haben Ihre Nachricht erhalten und melden uns so schnell wie möglich bei Ihnen.\n\n"
-            f"Bei dringenden Fragen: +49 160 78 57 633 oder henk@bettercallhenk.de\n\n"
-            f"Hochzeitstermin: {wedding_date or 'Noch nicht festgelegt'}\n"
-            f"Nachricht: {message}\n\n"
-            f"Mit freundlichen Grüßen,\nHenk – bettercallhenk"
-        )
-
-        confirm_msg.attach(MIMEText(confirm_text, 'plain', 'utf-8'))
-        confirm_msg.attach(MIMEText(confirm_html, 'html', 'utf-8'))
-
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, [email], confirm_msg.as_string())
-
-        logger.info(f'Confirmation email sent to customer {email}')
-    except Exception as e:
-        logger.error(f'Failed to send customer confirmation email: {str(e)}')
-        # Non-critical: team notification was already sent, don't fail
-
-    return True
-
-
 def _find_stage_id(pipeline_name, stage_name):
     """Resolve Pipedrive stage ID by pipeline and stage name."""
     try:
@@ -572,9 +447,6 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
             f'note_fields={{"deal_id": {deal_id}, "person_id": {person_id}, "pinned_to_deal_flag": 1}}'
         )
 
-        # Send email notification (always, regardless of Pipedrive success)
-        send_lead_email(name, email, phone, wedding_date, message, source_page, whatsapp_consent, is_fallback=False)
-
         return True
 
     except requests.exceptions.Timeout:
@@ -588,7 +460,7 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
         return True
 
 def _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent):
-    """Log lead details when Pipedrive is unavailable and send emergency email notification."""
+    """Log lead details when Pipedrive is unavailable, so no lead is lost."""
     logger.warning('=' * 60)
     logger.warning('PIPEDRIVE UNAVAILABLE - LEAD LOGGED AS FALLBACK')
     logger.warning('=' * 60)
@@ -600,14 +472,51 @@ def _log_lead_fallback(name, email, phone, wedding_date, message, source_page, w
     logger.warning(f'Message: {message}')
     logger.warning(f'WhatsApp Consent: {"accepted" if whatsapp_consent else "not accepted"}')
     logger.warning('=' * 60)
-    # Send emergency email so no lead is lost even when Pipedrive is down
-    send_lead_email(name, email, phone, wedding_date, message, source_page, whatsapp_consent, is_fallback=True)
 
 
 @app.route('/health')
 def health():
     """Health check endpoint for monitoring."""
     return {'status': 'healthy', 'service': 'hochzeitsanzug-landing'}, 200
+
+
+@app.route('/pipedrive-health')
+def pipedrive_health():
+    """
+    Pipedrive connectivity check.
+    Tests whether the API token and company domain are valid.
+    """
+    if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
+        return {
+            'status': 'error',
+            'reason': 'PIPEDRIVE_API_TOKEN or PIPEDRIVE_COMPANY_DOMAIN not set',
+            'api_token_set': bool(PIPEDRIVE_API_TOKEN),
+            'company_domain_set': bool(PIPEDRIVE_COMPANY_DOMAIN),
+        }, 500
+
+    try:
+        resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/users/me?api_token={PIPEDRIVE_API_TOKEN}',
+            timeout=10,
+        )
+        result = resp.json()
+        if result.get('success'):
+            user = result.get('data', {})
+            return {
+                'status': 'ok',
+                'pipedrive_user': user.get('name'),
+                'company_domain': PIPEDRIVE_COMPANY_DOMAIN,
+                'pipeline_name': PIPEDRIVE_PIPELINE_NAME,
+                'stage_name': PIPEDRIVE_STAGE_NAME,
+            }, 200
+        else:
+            return {
+                'status': 'error',
+                'reason': 'Pipedrive API rejected token',
+                'pipedrive_error': result.get('error'),
+            }, 500
+    except Exception as e:
+        return {'status': 'error', 'reason': str(e)}, 500
 
 
 @app.errorhandler(429)
