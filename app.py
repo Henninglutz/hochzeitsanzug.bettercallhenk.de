@@ -43,7 +43,13 @@ RECAPTCHA_SCORE_THRESHOLD = 0.5  # reCAPTCHA v3 score threshold (0.0 = bot, 1.0 
 # Pipedrive API Configuration
 PIPEDRIVE_API_TOKEN = os.environ.get('PIPEDRIVE_API_TOKEN', '')
 PIPEDRIVE_COMPANY_DOMAIN = os.environ.get('PIPEDRIVE_COMPANY_DOMAIN', '')
-PIPEDRIVE_API_BASE = f'https://{PIPEDRIVE_COMPANY_DOMAIN}.pipedrive.com/api/v1' if PIPEDRIVE_COMPANY_DOMAIN else ''
+_pipedrive_base_url = os.environ.get('PIPEDRIVE_BASE_URL', '').rstrip('/')
+if _pipedrive_base_url:
+    PIPEDRIVE_API_BASE = f'{_pipedrive_base_url}/api/v1'
+elif PIPEDRIVE_COMPANY_DOMAIN:
+    PIPEDRIVE_API_BASE = f'https://{PIPEDRIVE_COMPANY_DOMAIN}.pipedrive.com/api/v1'
+else:
+    PIPEDRIVE_API_BASE = ''
 PIPEDRIVE_PIPELINE_NAME = os.environ.get('PIPEDRIVE_PIPELINE_NAME', 'BETTERCALLHENK')
 PIPEDRIVE_STAGE_NAME = os.environ.get('PIPEDRIVE_STAGE_NAME', 'Teaser henk')
 PIPEDRIVE_FIELD_WEDDING_DATE = '5d0c64df2a706315462ca7d758971d9711d65de2'
