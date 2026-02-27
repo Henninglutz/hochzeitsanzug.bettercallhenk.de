@@ -269,7 +269,8 @@
           website: formData.get('website'), // Honeypot
           form_loaded_at: formData.get('form_loaded_at'),
           recaptcha_token: recaptchaToken,
-          source: formData.get('source') || 'unknown'
+          source: formData.get('source') || 'unknown',
+          whatsapp_consent: formData.get('whatsapp_consent') === 'accepted'
         };
 
         // Send to backend
@@ -392,6 +393,13 @@
       const message = form.querySelector('#message').value.trim();
       if (message.length < 10) {
         showError('message', 'Bitte geben Sie eine ausführlichere Nachricht ein (mind. 10 Zeichen).');
+        isValid = false;
+      }
+
+      // WhatsApp consent validation
+      const whatsappConsent = form.querySelector('#whatsapp_consent');
+      if (whatsappConsent && !whatsappConsent.checked) {
+        showError('whatsapp_consent', 'Bitte stimmen Sie der WhatsApp-Kontaktaufnahme zu.');
         isValid = false;
       }
 
