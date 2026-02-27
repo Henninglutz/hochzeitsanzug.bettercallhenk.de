@@ -189,6 +189,12 @@ def contact_form():
                 'message': 'Bitte füllen Sie alle Pflichtfelder aus.'
             }), 400
 
+        if not whatsapp_consent:
+            return jsonify({
+                'success': False,
+                'message': 'Bitte stimmen Sie der WhatsApp-Kontaktaufnahme zu.'
+            }), 400
+
         # === ALL CHECKS PASSED - Real Human User ===
         logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score} - Source: {source_page}')
 
