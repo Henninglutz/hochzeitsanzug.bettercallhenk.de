@@ -269,7 +269,8 @@
           website: formData.get('website'), // Honeypot
           form_loaded_at: formData.get('form_loaded_at'),
           recaptcha_token: recaptchaToken,
-          source: formData.get('source') || 'unknown'
+          source: formData.get('source') || 'unknown',
+          whatsapp_consent: formData.get('whatsapp_consent') === 'accepted'
         };
 
         // Send to backend
@@ -394,7 +395,6 @@
         showError('message', 'Bitte geben Sie eine ausführlichere Nachricht ein (mind. 10 Zeichen).');
         isValid = false;
       }
-
       return isValid;
     }
 
