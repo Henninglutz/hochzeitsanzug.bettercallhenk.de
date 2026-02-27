@@ -7,11 +7,7 @@ services:
       - /root/.env
     environment:
       - FLASK_DEBUG=False
-      - SECRET_KEY=${SECRET_KEY:-change-in-production}
-      - PIPEDRIVE_API_TOKEN=${PIPEDRIVE_API_TOKEN}
-      - PIPEDRIVE_BASE_URL=${PIPEDRIVE_BASE_URL}
       - PIPEDRIVE_COMPANY_DOMAIN=${PIPEDRIVE_COMPANY_DOMAIN:-bettercallhenk}
-      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY}
     volumes:
       - ./templates:/app/templates
       - ./static:/app/static
