@@ -199,7 +199,7 @@ def contact_form():
         logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score} - Source: {source_page}')
 
         # Create lead in Pipedrive CRM
-        lead_created = create_pipedrive_lead(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+        lead_created = create_pipedrive_lead(name, email, phone, wedding_date, message, source_page)
 
         if lead_created:
             logger.info(f'📧 Lead created in Pipedrive for {email}')
@@ -220,6 +220,127 @@ def contact_form():
             'success': False,
             'message': 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
         }), 500
+
+
+@app.route('/api/whatsapp-consent', methods=['POST'])
+@limiter.limit("10 per minute")
+@limiter.limit("30 per hour")
+def whatsapp_consent_form():
+    """
+    Standalone WhatsApp consent endpoint — independent of the contact form.
+    Searches for an existing Pipedrive person by email and updates the
+    WhatsApp consent custom field on their most recent open deal.
+    If no person is found, logs the consent so no data is lost.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'Keine Daten erhalten'}), 400
+
+        email = data.get('email', '').strip().lower()
+        consent = data.get('consent', False)
+
+        if not email:
+            return jsonify({'success': False, 'message': 'E-Mail-Adresse fehlt.'}), 400
+
+        if not consent:
+            return jsonify({'success': False, 'message': 'Bitte stimmen Sie zu, um fortzufahren.'}), 400
+
+        # Basic email format check
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email):
+            return jsonify({'success': False, 'message': 'Ungültige E-Mail-Adresse.'}), 400
+
+        logger.info(f'WhatsApp consent received for: {email}')
+
+        if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
+            logger.warning(f'Pipedrive not configured — WhatsApp consent logged: {email}')
+            return jsonify({'success': True, 'message': 'Vielen Dank! Ihre Zustimmung wurde gespeichert.'}), 200
+
+        success = _update_whatsapp_consent_in_pipedrive(email)
+
+        if success:
+            logger.info(f'WhatsApp consent updated in Pipedrive for {email}')
+        else:
+            logger.warning(f'WhatsApp consent could not be linked in Pipedrive for {email} — logged locally')
+
+        return jsonify({'success': True, 'message': 'Vielen Dank! Ihre Zustimmung wurde gespeichert.'}), 200
+
+    except Exception as e:
+        logger.error(f'WhatsApp consent error: {str(e)}', exc_info=True)
+        return jsonify({'success': False, 'message': 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'}), 500
+
+
+def _update_whatsapp_consent_in_pipedrive(email):
+    """
+    Search for a Pipedrive person by email.
+    If found, set the WhatsApp consent field on their most recent open deal.
+    Returns True on success, False if no matching person was found.
+    """
+    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+
+    try:
+        # Search person by email
+        search_resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/persons/search',
+            params={'term': email, 'fields': 'email', 'api_token': PIPEDRIVE_API_TOKEN},
+            headers=headers,
+            timeout=10,
+        )
+        search_result = search_resp.json()
+
+        items = (search_result.get('data') or {}).get('items', [])
+        if not items:
+            logger.info(f'No Pipedrive person found for email: {email}')
+            return False
+
+        person_id = items[0]['item']['id']
+        logger.info(f'Found Pipedrive person ID {person_id} for {email}')
+
+        # Get their open deals (sorted by update time, most recent first)
+        deals_resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/persons/{person_id}/deals',
+            params={'status': 'open', 'api_token': PIPEDRIVE_API_TOKEN},
+            headers=headers,
+            timeout=10,
+        )
+        deals_result = deals_resp.json()
+        deals = deals_result.get('data') or []
+
+        if not deals:
+            logger.info(f'No open deals for person {person_id} — trying all deals')
+            deals_resp = requests.get(
+                f'{PIPEDRIVE_API_BASE}/persons/{person_id}/deals',
+                params={'api_token': PIPEDRIVE_API_TOKEN},
+                headers=headers,
+                timeout=10,
+            )
+            deals = deals_resp.json().get('data') or []
+
+        if not deals:
+            logger.warning(f'Person {person_id} has no deals to update WhatsApp consent on')
+            return False
+
+        # Update WhatsApp consent on the most recent deal
+        deal_id = deals[0]['id']
+        update_resp = requests.put(
+            f'{PIPEDRIVE_API_BASE}/deals/{deal_id}',
+            params={'api_token': PIPEDRIVE_API_TOKEN},
+            json={PIPEDRIVE_FIELD_WHATSAPP_CONSENT: 'accepted'},
+            headers=headers,
+            timeout=10,
+        )
+        update_result = update_resp.json()
+
+        if update_result.get('success'):
+            logger.info(f'WhatsApp consent field updated on deal {deal_id} for person {person_id}')
+            return True
+        else:
+            logger.error(f'Deal update failed: {update_result}')
+            return False
+
+    except Exception as e:
+        logger.error(f'Pipedrive WhatsApp consent update error: {str(e)}', exc_info=True)
+        return False
 
 
 def verify_recaptcha(token, remote_ip):
@@ -339,14 +460,15 @@ def _find_stage_id(pipeline_name, stage_name):
         return None
 
 
-def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page='unknown', whatsapp_consent=False):
+def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page='unknown'):
     """
     Create a Person and Deal in Pipedrive CRM.
     Falls back to logging if Pipedrive is not configured or unavailable.
     """
     if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
         logger.error('Pipedrive API not configured - missing PIPEDRIVE_API_TOKEN or PIPEDRIVE_COMPANY_DOMAIN')
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+        logger.error(f'  API_TOKEN set: {bool(PIPEDRIVE_API_TOKEN)} | API_BASE: "{PIPEDRIVE_API_BASE}"')
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
         return True
 
     headers = {
@@ -362,18 +484,20 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
             'phone': [{'value': phone, 'primary': True}],
         }
 
+        logger.info(f'Pipedrive → POST /persons for {email}')
         person_response = requests.post(
             f'{PIPEDRIVE_API_BASE}/persons?api_token={PIPEDRIVE_API_TOKEN}',
             json=person_data,
             headers=headers,
             timeout=10
         )
+        logger.info(f'Pipedrive /persons status: {person_response.status_code}')
 
         person_result = person_response.json()
 
         if not person_result.get('success'):
             logger.error(f'Pipedrive person creation failed: {person_result}')
-            _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
             return True
 
         person_id = person_result['data']['id']
@@ -383,29 +507,31 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
         deal_title = f'LP {source_page.replace("-", " ").title()} - {name}'
         stage_id = _find_stage_id(PIPEDRIVE_PIPELINE_NAME, PIPEDRIVE_STAGE_NAME)
 
+        # Only include custom fields that have actual values — null values can cause deal creation to fail
         deal_data = {
             'title': deal_title,
             'person_id': person_id,
             'status': 'open',
-            PIPEDRIVE_FIELD_WEDDING_DATE: wedding_date or None,
-            PIPEDRIVE_FIELD_WHATSAPP_CONSENT: 'accepted' if whatsapp_consent else None,
         }
-
+        if wedding_date:
+            deal_data[PIPEDRIVE_FIELD_WEDDING_DATE] = wedding_date
         if stage_id:
             deal_data['stage_id'] = stage_id
 
+        logger.info(f'Pipedrive → POST /deals: title="{deal_title}" stage_id={stage_id}')
         deal_response = requests.post(
             f'{PIPEDRIVE_API_BASE}/deals?api_token={PIPEDRIVE_API_TOKEN}',
             json=deal_data,
             headers=headers,
             timeout=10
         )
+        logger.info(f'Pipedrive /deals status: {deal_response.status_code}')
 
         deal_result = deal_response.json()
 
         if not deal_result.get('success'):
             logger.error(f'Pipedrive deal creation failed: {deal_result}')
-            _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+            _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
             return True
 
         deal_id = deal_result['data']['id']
@@ -451,33 +577,78 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
 
     except requests.exceptions.Timeout:
         logger.error(f'Pipedrive API timeout for {email}')
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
         return True
 
     except Exception as e:
         logger.error(f'Pipedrive API error: {str(e)}', exc_info=True)
-        _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent)
+        _log_lead_fallback(name, email, phone, wedding_date, message, source_page)
         return True
 
-def _log_lead_fallback(name, email, phone, wedding_date, message, source_page, whatsapp_consent):
-    """Log lead details when Pipedrive is unavailable, so no lead is lost."""
+
+def _log_lead_fallback(name, email, phone, wedding_date, message, source_page):
+    """
+    Persist lead to /app/leads_fallback.log when Pipedrive is unavailable.
+    This file survives container restarts if mounted as a volume.
+    Also logs to stdout so docker compose logs always captures it.
+    """
+    import json as _json
+    from datetime import datetime, timezone
+
+    entry = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'source': source_page,
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'wedding_date': wedding_date or '',
+        'message': message,
+    }
+
+    # stdout (visible in docker compose logs)
     logger.warning('=' * 60)
-    logger.warning('PIPEDRIVE UNAVAILABLE - LEAD LOGGED AS FALLBACK')
+    logger.warning('PIPEDRIVE UNAVAILABLE — LEAD SAVED TO FALLBACK LOG')
     logger.warning('=' * 60)
-    logger.warning(f'Source: {source_page}')
-    logger.warning(f'Name: {name}')
-    logger.warning(f'Email: {email}')
-    logger.warning(f'Phone: {phone}')
-    logger.warning(f'Wedding Date: {wedding_date or "Not specified"}')
-    logger.warning(f'Message: {message}')
-    logger.warning(f'WhatsApp Consent: {"accepted" if whatsapp_consent else "not accepted"}')
+    for k, v in entry.items():
+        logger.warning(f'  {k}: {v}')
     logger.warning('=' * 60)
+
+    # persistent file — append one JSON line per lead
+    try:
+        log_path = '/app/leads_fallback.log'
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(_json.dumps(entry, ensure_ascii=False) + '\n')
+        logger.warning(f'Lead written to {log_path}')
+    except Exception as file_err:
+        logger.error(f'Could not write to fallback log file: {file_err}')
 
 
 @app.route('/health')
 def health():
     """Health check endpoint for monitoring."""
     return {'status': 'healthy', 'service': 'hochzeitsanzug-landing'}, 200
+
+
+@app.route('/api/leads-log')
+def leads_log():
+    """
+    Returns the fallback lead log as JSON — only reachable from localhost.
+    Use on VPS: curl http://localhost:8001/api/leads-log
+    Shows every lead that was received but could not reach Pipedrive.
+    """
+    if request.remote_addr not in ('127.0.0.1', '::1'):
+        return jsonify({'error': 'Nur lokal erreichbar'}), 403
+
+    import json as _json
+    log_path = '/app/leads_fallback.log'
+    try:
+        with open(log_path, 'r', encoding='utf-8') as f:
+            leads = [_json.loads(line) for line in f if line.strip()]
+        return jsonify({'count': len(leads), 'leads': leads}), 200
+    except FileNotFoundError:
+        return jsonify({'count': 0, 'leads': [], 'info': 'Keine Fallback-Leads vorhanden — Pipedrive läuft korrekt oder noch keine Formulardaten eingegangen'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/pipedrive-health')
