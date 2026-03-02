@@ -195,12 +195,6 @@ def contact_form():
                 'message': 'Bitte füllen Sie alle Pflichtfelder aus.'
             }), 400
 
-        if not whatsapp_consent:
-            return jsonify({
-                'success': False,
-                'message': 'Bitte stimmen Sie der WhatsApp-Kontaktaufnahme zu.'
-            }), 400
-
         # === ALL CHECKS PASSED - Real Human User ===
         logger.info(f'✅ REAL USER: {email} - reCAPTCHA Score: {recaptcha_score} - Source: {source_page}')
 
@@ -226,6 +220,127 @@ def contact_form():
             'success': False,
             'message': 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.'
         }), 500
+
+
+@app.route('/api/whatsapp-consent', methods=['POST'])
+@limiter.limit("10 per minute")
+@limiter.limit("30 per hour")
+def whatsapp_consent_form():
+    """
+    Standalone WhatsApp consent endpoint — independent of the contact form.
+    Searches for an existing Pipedrive person by email and updates the
+    WhatsApp consent custom field on their most recent open deal.
+    If no person is found, logs the consent so no data is lost.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'Keine Daten erhalten'}), 400
+
+        email = data.get('email', '').strip().lower()
+        consent = data.get('consent', False)
+
+        if not email:
+            return jsonify({'success': False, 'message': 'E-Mail-Adresse fehlt.'}), 400
+
+        if not consent:
+            return jsonify({'success': False, 'message': 'Bitte stimmen Sie zu, um fortzufahren.'}), 400
+
+        # Basic email format check
+        if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email):
+            return jsonify({'success': False, 'message': 'Ungültige E-Mail-Adresse.'}), 400
+
+        logger.info(f'WhatsApp consent received for: {email}')
+
+        if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_API_BASE:
+            logger.warning(f'Pipedrive not configured — WhatsApp consent logged: {email}')
+            return jsonify({'success': True, 'message': 'Vielen Dank! Ihre Zustimmung wurde gespeichert.'}), 200
+
+        success = _update_whatsapp_consent_in_pipedrive(email)
+
+        if success:
+            logger.info(f'WhatsApp consent updated in Pipedrive for {email}')
+        else:
+            logger.warning(f'WhatsApp consent could not be linked in Pipedrive for {email} — logged locally')
+
+        return jsonify({'success': True, 'message': 'Vielen Dank! Ihre Zustimmung wurde gespeichert.'}), 200
+
+    except Exception as e:
+        logger.error(f'WhatsApp consent error: {str(e)}', exc_info=True)
+        return jsonify({'success': False, 'message': 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'}), 500
+
+
+def _update_whatsapp_consent_in_pipedrive(email):
+    """
+    Search for a Pipedrive person by email.
+    If found, set the WhatsApp consent field on their most recent open deal.
+    Returns True on success, False if no matching person was found.
+    """
+    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
+
+    try:
+        # Search person by email
+        search_resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/persons/search',
+            params={'term': email, 'fields': 'email', 'api_token': PIPEDRIVE_API_TOKEN},
+            headers=headers,
+            timeout=10,
+        )
+        search_result = search_resp.json()
+
+        items = (search_result.get('data') or {}).get('items', [])
+        if not items:
+            logger.info(f'No Pipedrive person found for email: {email}')
+            return False
+
+        person_id = items[0]['item']['id']
+        logger.info(f'Found Pipedrive person ID {person_id} for {email}')
+
+        # Get their open deals (sorted by update time, most recent first)
+        deals_resp = requests.get(
+            f'{PIPEDRIVE_API_BASE}/persons/{person_id}/deals',
+            params={'status': 'open', 'api_token': PIPEDRIVE_API_TOKEN},
+            headers=headers,
+            timeout=10,
+        )
+        deals_result = deals_resp.json()
+        deals = deals_result.get('data') or []
+
+        if not deals:
+            logger.info(f'No open deals for person {person_id} — trying all deals')
+            deals_resp = requests.get(
+                f'{PIPEDRIVE_API_BASE}/persons/{person_id}/deals',
+                params={'api_token': PIPEDRIVE_API_TOKEN},
+                headers=headers,
+                timeout=10,
+            )
+            deals = deals_resp.json().get('data') or []
+
+        if not deals:
+            logger.warning(f'Person {person_id} has no deals to update WhatsApp consent on')
+            return False
+
+        # Update WhatsApp consent on the most recent deal
+        deal_id = deals[0]['id']
+        update_resp = requests.put(
+            f'{PIPEDRIVE_API_BASE}/deals/{deal_id}',
+            params={'api_token': PIPEDRIVE_API_TOKEN},
+            json={PIPEDRIVE_FIELD_WHATSAPP_CONSENT: 'accepted'},
+            headers=headers,
+            timeout=10,
+        )
+        update_result = update_resp.json()
+
+        if update_result.get('success'):
+            logger.info(f'WhatsApp consent field updated on deal {deal_id} for person {person_id}')
+            return True
+        else:
+            logger.error(f'Deal update failed: {update_result}')
+            return False
+
+    except Exception as e:
+        logger.error(f'Pipedrive WhatsApp consent update error: {str(e)}', exc_info=True)
+        return False
 
 
 def verify_recaptcha(token, remote_ip):

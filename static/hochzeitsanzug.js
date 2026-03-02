@@ -20,6 +20,7 @@
     initCTATracking();
     initIntersectionObserver();
     initContactForm();
+    initWhatsappConsent();
   }
 
   /**
@@ -269,8 +270,7 @@
           website: formData.get('website'), // Honeypot
           form_loaded_at: formData.get('form_loaded_at'),
           recaptcha_token: recaptchaToken,
-          source: formData.get('source') || 'unknown',
-          whatsapp_consent: formData.get('whatsapp_consent') === 'accepted'
+          source: formData.get('source') || 'unknown'
         };
 
         // Send to backend
@@ -449,6 +449,92 @@
      */
     function hideMessage() {
       formMessage.style.display = 'none';
+    }
+  }
+
+  /**
+   * Standalone WhatsApp Consent Widget
+   * Independent of the main contact form — calls /api/whatsapp-consent directly.
+   * Pre-fills the email field from the contact form if the user has already typed one.
+   */
+  function initWhatsappConsent() {
+    const widget = document.getElementById('whatsapp-consent-widget');
+    if (!widget) return;
+
+    const btn = document.getElementById('whatsapp-consent-btn');
+    const emailInput = document.getElementById('whatsapp_consent_email');
+    const checkbox = document.getElementById('whatsapp_consent_standalone');
+    const msgEl = document.getElementById('whatsapp-consent-message');
+    const btnText = btn.querySelector('.btn-text');
+    const btnSpinner = btn.querySelector('.btn-spinner');
+
+    // Pre-fill email from the contact form if available
+    const contactEmailInput = document.getElementById('email');
+    if (contactEmailInput) {
+      contactEmailInput.addEventListener('input', () => {
+        if (!emailInput.dataset.manuallyEdited) {
+          emailInput.value = contactEmailInput.value;
+        }
+      });
+    }
+    emailInput.addEventListener('input', () => {
+      emailInput.dataset.manuallyEdited = '1';
+    });
+
+    btn.addEventListener('click', async () => {
+      const email = emailInput.value.trim();
+      const consented = checkbox.checked;
+
+      // Clear previous message
+      msgEl.style.display = 'none';
+      msgEl.className = 'whatsapp-consent-message';
+
+      if (!email) {
+        showConsentMessage('Bitte geben Sie Ihre E-Mail-Adresse ein.', 'error');
+        return;
+      }
+      if (!consented) {
+        showConsentMessage('Bitte haken Sie die Zustimmung an, um fortzufahren.', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.style.display = 'none';
+      btnSpinner.style.display = 'inline';
+
+      try {
+        const response = await fetch('/api/whatsapp-consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, consent: true })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          showConsentMessage('Vielen Dank! Ihre WhatsApp-Zustimmung wurde gespeichert.', 'success');
+          checkbox.checked = false;
+          emailInput.value = '';
+          trackEvent('WhatsApp Consent', 'Submit', 'Success');
+        } else if (response.status === 429) {
+          showConsentMessage('Zu viele Anfragen. Bitte versuchen Sie es später erneut.', 'error');
+        } else {
+          showConsentMessage(result.message || 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.', 'error');
+        }
+      } catch (err) {
+        console.error('WhatsApp consent error:', err);
+        showConsentMessage('Verbindungsfehler. Bitte versuchen Sie es erneut.', 'error');
+      } finally {
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnSpinner.style.display = 'none';
+      }
+    });
+
+    function showConsentMessage(message, type) {
+      msgEl.textContent = message;
+      msgEl.className = `whatsapp-consent-message whatsapp-consent-message--${type}`;
+      msgEl.style.display = 'block';
     }
   }
 

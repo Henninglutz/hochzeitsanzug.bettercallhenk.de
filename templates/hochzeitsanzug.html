@@ -723,19 +723,6 @@
               </div>
 
 
-              <div class="form-group form-group-full consent-group">
-                <label for="whatsapp_consent" class="consent-label">
-                  <input
-                    type="checkbox"
-                    id="whatsapp_consent"
-                    name="whatsapp_consent"
-                    value="accepted"
-                  />
-                  Ich stimme der Kontaktaufnahme per WhatsApp zu (Marketing Opt-in).
-                </label>
-                <span class="form-error" id="whatsapp_consent-error"></span>
-              </div>
-
               <!-- Honeypot Field (versteckt für Bots) -->
               <input
                 type="text"
@@ -770,6 +757,39 @@
             <!-- Status Messages -->
             <div class="form-message" id="form-message" style="display: none;"></div>
           </form>
+
+          <!-- WhatsApp Consent Widget (unabhängig vom Kontaktformular) -->
+          <div class="whatsapp-consent-widget" id="whatsapp-consent-widget">
+            <div class="whatsapp-consent-header">
+              <span class="whatsapp-consent-icon">💬</span>
+              <div>
+                <strong>Auch per WhatsApp erreichbar?</strong>
+                <p>Schnelle Antworten, Terminbestätigungen und Updates direkt auf Ihr Handy.</p>
+              </div>
+            </div>
+            <div class="whatsapp-consent-body">
+              <label class="consent-label">
+                <input
+                  type="checkbox"
+                  id="whatsapp_consent_standalone"
+                  name="whatsapp_consent_standalone"
+                />
+                Ich stimme der Kontaktaufnahme per WhatsApp zu (Marketing Opt-in).
+              </label>
+              <input
+                type="email"
+                id="whatsapp_consent_email"
+                placeholder="Ihre E-Mail-Adresse zur Zuordnung"
+                autocomplete="email"
+                class="whatsapp-consent-email"
+              />
+              <button type="button" id="whatsapp-consent-btn" class="btn wp-btn btn-primary">
+                <span class="btn-text">WhatsApp-Kontakt aktivieren</span>
+                <span class="btn-spinner" style="display:none;">⏳ Wird gespeichert...</span>
+              </button>
+            </div>
+            <div class="whatsapp-consent-message" id="whatsapp-consent-message" style="display:none;"></div>
+          </div>
 
           <div class="contact-divider">
             <span>oder direkt kontaktieren</span>
