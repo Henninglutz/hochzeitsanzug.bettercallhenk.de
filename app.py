@@ -632,13 +632,10 @@ def health():
 @app.route('/api/leads-log')
 def leads_log():
     """
-    Returns the fallback lead log as JSON — only reachable from localhost.
-    Use on VPS: curl http://localhost:8001/api/leads-log
-    Shows every lead that was received but could not reach Pipedrive.
+    Returns the fallback lead log as JSON.
+    Blocked at Nginx level from external access — see nginx config.
+    On VPS: curl http://localhost:8001/api/leads-log
     """
-    if request.remote_addr not in ('127.0.0.1', '::1'):
-        return jsonify({'error': 'Nur lokal erreichbar'}), 403
-
     import json as _json
     log_path = '/app/leads_fallback.log'
     try:
@@ -646,7 +643,7 @@ def leads_log():
             leads = [_json.loads(line) for line in f if line.strip()]
         return jsonify({'count': len(leads), 'leads': leads}), 200
     except FileNotFoundError:
-        return jsonify({'count': 0, 'leads': [], 'info': 'Keine Fallback-Leads vorhanden — Pipedrive läuft korrekt oder noch keine Formulardaten eingegangen'}), 200
+        return jsonify({'count': 0, 'leads': [], 'info': 'Keine Fallback-Leads — Pipedrive läuft oder noch keine Anfragen eingegangen'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
