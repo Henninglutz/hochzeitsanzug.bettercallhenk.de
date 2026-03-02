@@ -52,8 +52,11 @@ else:
     PIPEDRIVE_API_BASE = ''
 PIPEDRIVE_PIPELINE_NAME = os.environ.get('PIPEDRIVE_PIPELINE_NAME', 'BETTERCALLHENK')
 PIPEDRIVE_STAGE_NAME = os.environ.get('PIPEDRIVE_STAGE_NAME', 'Teaser henk')
-PIPEDRIVE_FIELD_WEDDING_DATE = '5d0c64df2a706315462ca7d758971d9711d65de2'
-PIPEDRIVE_FIELD_WHATSAPP_CONSENT = '10ad5ed0620f139d337e46186c1fd043986b998d'
+# Custom field keys — account-specific hashes, set via /root/.env on the VPS.
+# Leave empty to skip the field (deal creation still works without them).
+# Find your keys: curl "https://{domain}.pipedrive.com/api/v1/dealFields?api_token=TOKEN"
+PIPEDRIVE_FIELD_WEDDING_DATE = os.environ.get('PIPEDRIVE_FIELD_WEDDING_DATE', '')
+PIPEDRIVE_FIELD_WHATSAPP_CONSENT = os.environ.get('PIPEDRIVE_FIELD_WHATSAPP_CONSENT', '')
 
 # Rate Limiting
 limiter = Limiter(
@@ -322,6 +325,9 @@ def _update_whatsapp_consent_in_pipedrive(email):
 
         # Update WhatsApp consent on the most recent deal
         deal_id = deals[0]['id']
+        if not PIPEDRIVE_FIELD_WHATSAPP_CONSENT:
+            logger.warning('PIPEDRIVE_FIELD_WHATSAPP_CONSENT not configured — consent not written to deal field')
+            return True
         update_resp = requests.put(
             f'{PIPEDRIVE_API_BASE}/deals/{deal_id}',
             params={'api_token': PIPEDRIVE_API_TOKEN},
@@ -507,16 +513,17 @@ def create_pipedrive_lead(name, email, phone, wedding_date, message, source_page
         deal_title = f'LP {source_page.replace("-", " ").title()} - {name}'
         stage_id = _find_stage_id(PIPEDRIVE_PIPELINE_NAME, PIPEDRIVE_STAGE_NAME)
 
-        # Only include custom fields that have actual values — null values can cause deal creation to fail
+        # Only include custom fields when the key is configured AND has a value.
+        # Wrong/missing field keys cause a 400 from Pipedrive and kill the whole deal.
         deal_data = {
             'title': deal_title,
             'person_id': person_id,
             'status': 'open',
         }
-        if wedding_date:
-            deal_data[PIPEDRIVE_FIELD_WEDDING_DATE] = wedding_date
         if stage_id:
             deal_data['stage_id'] = stage_id
+        if wedding_date and PIPEDRIVE_FIELD_WEDDING_DATE:
+            deal_data[PIPEDRIVE_FIELD_WEDDING_DATE] = wedding_date
 
         logger.info(f'Pipedrive → POST /deals: title="{deal_title}" stage_id={stage_id}')
         deal_response = requests.post(
